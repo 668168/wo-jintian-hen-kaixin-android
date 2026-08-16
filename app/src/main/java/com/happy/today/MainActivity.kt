@@ -60,6 +60,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.happy.today.data.HappyRepository
 import com.happy.today.model.HappyPost
+import com.happy.today.ui.MainNavigation
+import com.happy.today.ui.ProfileScreen
+import com.happy.today.ui.theme.HappyTodayTheme
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -68,7 +71,7 @@ import java.util.Locale
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { HappyTodayApp() }
+        setContent { MainNavigation() }
     }
 }
 
@@ -120,13 +123,13 @@ private class HappyAppState(private val repository: HappyRepository) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun HappyTodayApp() {
+internal fun HappyTodayApp() {
     val context = LocalContext.current
     val state = remember { HappyAppState(HappyRepository(context.applicationContext)) }
     var selectedTab by remember { mutableStateOf(AppTab.HOME) }
     var showComposer by remember { mutableStateOf(false) }
 
-    MaterialTheme {
+    HappyTodayTheme {
         Scaffold(
             containerColor = WarmBackground,
             topBar = {
@@ -154,7 +157,7 @@ private fun HappyTodayApp() {
                     AppTab.PLAZA -> PlazaContent(state)
                     AppTab.CHECK_IN -> CheckInContent(state)
                     AppTab.CALENDAR -> CalendarContent(state.checkInDates)
-                    AppTab.PROFILE -> ProfileContent(state)
+                    AppTab.PROFILE -> ProfileScreen(state.posts)
                 }
             }
         }
@@ -303,34 +306,6 @@ private fun CalendarContent(checkInDates: Set<String>) {
             }
         }
         Text("🟢 已打卡    累计 ${checkInDates.size} 天", color = Color.Gray)
-    }
-}
-
-@Composable
-private fun ProfileContent(state: HappyAppState) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        item {
-            Card(colors = CardDefaults.cardColors(containerColor = Color.White)) {
-                Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("🙂", fontSize = 48.sp); Spacer(Modifier.width(14.dp))
-                    Column { Text("开心的小太阳", fontWeight = FontWeight.Bold, fontSize = 20.sp); Text("本地体验账号", color = Color.Gray) }
-                }
-            }
-        }
-        item { SectionTitle("我的开心日记") }
-        if (state.posts.isEmpty()) item { EmptyMessage("还没有记录") }
-        items(state.posts, key = { it.id }) { post ->
-            Card(colors = CardDefaults.cardColors(containerColor = Color.White)) {
-                Column(Modifier.padding(16.dp)) {
-                    Text("${post.category} · ${if (post.isPublic) "公开" else "仅自己可见"}", color = Color.Gray, fontSize = 12.sp)
-                    Text(post.content, Modifier.padding(top = 6.dp))
-                }
-            }
-        }
-        item { HorizontalDivider(); Text("登录、云同步与真实多人社区将在云端配置完成后启用。", color = Color.Gray, fontSize = 12.sp) }
     }
 }
 

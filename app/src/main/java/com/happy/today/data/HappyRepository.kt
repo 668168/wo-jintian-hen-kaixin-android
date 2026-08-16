@@ -7,10 +7,10 @@ import org.json.JSONObject
 import java.time.LocalDate
 
 class HappyRepository(context: Context) {
-    private val preferences = context.getSharedPreferences("happy_today", Context.MODE_PRIVATE)
+    private val storage = LocalStorage(context)
 
     fun getPosts(): List<HappyPost> {
-        val raw = preferences.getString(KEY_POSTS, null) ?: return samplePosts()
+        val raw = storage.getString(KEY_POSTS) ?: return samplePosts()
         return runCatching {
             val array = JSONArray(raw)
             List(array.length()) { index -> array.getJSONObject(index).toPost() }
@@ -20,16 +20,16 @@ class HappyRepository(context: Context) {
     fun savePosts(posts: List<HappyPost>) {
         val array = JSONArray()
         posts.forEach { array.put(it.toJson()) }
-        preferences.edit().putString(KEY_POSTS, array.toString()).apply()
+        storage.putString(KEY_POSTS, array.toString())
     }
 
     fun getCheckInDates(): Set<String> =
-        preferences.getStringSet(KEY_CHECK_INS, emptySet())?.toSet().orEmpty()
+        storage.getStringSet(KEY_CHECK_INS)
 
     fun checkInToday(): Boolean {
         val dates = getCheckInDates().toMutableSet()
         if (!dates.add(LocalDate.now().toString())) return false
-        preferences.edit().putStringSet(KEY_CHECK_INS, dates).apply()
+        storage.putStringSet(KEY_CHECK_INS, dates)
         return true
     }
 
