@@ -6,5 +6,8 @@ data class HappyPost(
     val category: String = "生活",
     val likes: Int = 0,
     val comments: List<String> = emptyList(),
-    val public: Boolean = true
+    val isPublic: Boolean = true,
+    val mediaUri: String? = null,
+    val mediaType: String? = null,
+    val createdAt: Long = System.currentTimeMillis()
 )
