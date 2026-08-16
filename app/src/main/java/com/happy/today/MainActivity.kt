@@ -5,11 +5,15 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.speech.RecognizerIntent
+import android.widget.ImageView
+import android.widget.VideoView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,6 +36,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
@@ -51,6 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -60,8 +66,10 @@ import com.happy.today.model.HappyPost
 import com.happy.today.ui.MainNavigation
 import com.happy.today.ui.ProfileScreen
 import com.happy.today.ui.theme.HappyTodayTheme
+import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -77,8 +85,7 @@ private val WarmBackground = Color(0xFFFFF9EC)
 private val Coral = Color(0xFFFF5C73)
 
 private enum class AppTab(val label: String, val emoji: String) {
-    HOME("首页", "☀️"), PLAZA("开心广场", "💬"), CHECK_IN("打卡", "✅"),
-    CALENDAR("日历", "📅"), PROFILE("我的", "🙂")
+    HOME("首页", "☀️"), PLAZA("开心广场", "💬"), PROFILE("我的", "🙂")
 }
 
 private class HappyAppState(private val repository: HappyRepository) {
@@ -152,8 +159,6 @@ internal fun HappyTodayApp() {
                 when (selectedTab) {
                     AppTab.HOME -> HomeContent(state, onCompose = { showComposer = true })
                     AppTab.PLAZA -> PlazaContent(state)
-                    AppTab.CHECK_IN -> CheckInContent(state)
-                    AppTab.CALENDAR -> CalendarContent(state.checkInDates)
                     AppTab.PROFILE -> ProfileScreen(state.posts)
                 }
             }
@@ -212,6 +217,7 @@ private fun HomeContent(state: HappyAppState, onCompose: () -> Unit) {
                 )
             }
         }
+        item { CalendarPanel(posts = state.posts, onCompose = onCompose) }
     }
 }
 
@@ -236,10 +242,17 @@ private fun PostCard(post: HappyPost, onLike: (Long) -> Unit, onComment: (Long, 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(38.dp).background(Sunshine, CircleShape), contentAlignment = Alignment.Center) { Text("🙂") }
                 Spacer(Modifier.width(10.dp))
-                Column { Text("开心用户", fontWeight = FontWeight.Bold); Text(post.category, color = Color.Gray, fontSize = 12.sp) }
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("开心用户", fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.width(8.dp))
+                        Text(formatPostTime(post.createdAt), color = Color.Gray, fontSize = 11.sp)
+                    }
+                    Text(post.category, color = Color.Gray, fontSize = 12.sp)
+                }
             }
             Text(post.content, fontSize = 17.sp, lineHeight = 25.sp)
-            post.mediaType?.let { type -> Text(if (type == "image") "🖼️ 已添加图片" else "🎬 已添加视频", color = Coral) }
+            MediaPreview(post.mediaUri, post.mediaType)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = { onLike(post.id) }) { Text("❤️ ${post.likes}") }
                 Text("💬 ${post.comments.size}", color = Color.Gray)
@@ -257,52 +270,71 @@ private fun PostCard(post: HappyPost, onLike: (Long) -> Unit, onComment: (Long, 
 }
 
 @Composable
-private fun CheckInContent(state: HappyAppState) {
-    var message by remember { mutableStateOf("") }
-    val checkedToday = LocalDate.now().toString() in state.checkInDates
-    Column(
-        Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(if (checkedToday) "✅" else "☀️", fontSize = 88.sp)
-        Text(if (checkedToday) "今天已打卡" else "记录快乐，坚持正念", fontSize = 26.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(12.dp))
-        Text("连续 ${state.streak()} 天 · 累计奖励 ¥${state.reward()}", color = Color.Gray)
-        Spacer(Modifier.height(28.dp))
-        Button(
-            onClick = { message = if (state.checkIn()) "打卡成功，演示奖励 +¥1" else "今天已经打过卡啦" },
-            enabled = !checkedToday
-        ) { Text(if (checkedToday) "明天再来" else "开心打卡 +¥1") }
-        if (message.isNotBlank()) Text(message, Modifier.padding(top = 16.dp), color = Coral)
-        Spacer(Modifier.height(32.dp))
-        Text("奖励为产品演示逻辑，不代表真实余额或支付承诺。", fontSize = 12.sp, color = Color.Gray)
-    }
-}
-
-@Composable
-private fun CalendarContent(checkInDates: Set<String>) {
+private fun CalendarPanel(posts: List<HappyPost>, onCompose: () -> Unit) {
     val month = YearMonth.now()
     val firstOffset = month.atDay(1).dayOfWeek.value - 1
     val cells = List(firstOffset) { 0 } + (1..month.lengthOfMonth()).toList()
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(month.format(DateTimeFormatter.ofPattern("yyyy 年 M 月")), fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Row(Modifier.fillMaxWidth()) {
-            listOf("一", "二", "三", "四", "五", "六", "日").forEach { Text(it, Modifier.weight(1f), textAlign = TextAlign.Center) }
-        }
-        cells.chunked(7).forEach { week ->
+    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+    val postsByDate = posts.groupBy { postDate(it.createdAt) }
+    val selectedPosts = postsByDate[selectedDate].orEmpty()
+
+    Card(colors = CardDefaults.cardColors(containerColor = Color.White)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("开心日历", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                Text(month.format(DateTimeFormatter.ofPattern("yyyy 年 M 月")), color = Color.Gray)
+                IconButton(onClick = onCompose) { Text("＋", fontSize = 28.sp, color = Coral) }
+            }
             Row(Modifier.fillMaxWidth()) {
-                week.forEach { day ->
-                    val checked = day > 0 && month.atDay(day).toString() in checkInDates
-                    Box(
-                        Modifier.weight(1f).height(48.dp).padding(4.dp)
-                            .background(if (checked) Color(0xFF58C995) else Color.Transparent, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) { if (day > 0) Text(day.toString(), color = if (checked) Color.White else Color.Unspecified) }
+                listOf("一", "二", "三", "四", "五", "六", "日").forEach {
+                    Text(it, Modifier.weight(1f), textAlign = TextAlign.Center, color = Color.Gray)
                 }
-                repeat(7 - week.size) { Spacer(Modifier.weight(1f)) }
+            }
+            cells.chunked(7).forEach { week ->
+                Row(Modifier.fillMaxWidth()) {
+                    week.forEach { day ->
+                        if (day == 0) {
+                            Spacer(Modifier.weight(1f).height(58.dp))
+                        } else {
+                            val date = month.atDay(day)
+                            val count = postsByDate[date].orEmpty().size
+                            val isToday = date == LocalDate.now()
+                            val isSelected = date == selectedDate
+                            Column(
+                                Modifier.weight(1f).height(58.dp).padding(2.dp)
+                                    .border(if (isSelected) 1.dp else 0.dp, Coral, CircleShape)
+                                    .clickable { selectedDate = date },
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(day.toString(), fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal)
+                                    if (isToday && count > 0) Text("✓", color = Sunshine, fontWeight = FontWeight.Bold)
+                                }
+                                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    repeat(count.coerceAtMost(3)) {
+                                        Box(Modifier.size(5.dp).background(Coral, CircleShape))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    repeat(7 - week.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+            Text(selectedDate.format(DateTimeFormatter.ofPattern("M 月 d 日的开心记录")), fontWeight = FontWeight.Bold)
+            if (selectedPosts.isEmpty()) {
+                Text("这一天还没有记录", color = Color.Gray)
+            } else {
+                selectedPosts.forEach { post ->
+                    Column(Modifier.fillMaxWidth().background(WarmBackground, RoundedCornerShape(10.dp)).padding(10.dp)) {
+                        Text(post.content)
+                        MediaPreview(post.mediaUri, post.mediaType, compact = true)
+                    }
+                }
             }
         }
-        Text("🟢 已打卡    累计 ${checkInDates.size} 天", color = Color.Gray)
     }
 }
 
@@ -342,23 +374,23 @@ private fun ComposerDialog(
                     value = text, onValueChange = { text = it.take(100) }, modifier = Modifier.fillMaxWidth(),
                     minLines = 3, label = { Text("开心事（最多 100 字）") }, supportingText = { Text("${text.length}/100") }
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf("工作", "生活", "家庭", "其他").forEach { item ->
-                        FilterChip(selected = category == item, onClick = { category = item }, label = { Text(item) })
-                    }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { imagePicker.launch(arrayOf("image/*")) }) { Text("图片") }
-                    OutlinedButton(onClick = { videoPicker.launch(arrayOf("video/*")) }) { Text("视频") }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    OutlinedButton(onClick = { imagePicker.launch(arrayOf("image/*")) }) { Text("🖼️ 图片") }
+                    OutlinedButton(onClick = { videoPicker.launch(arrayOf("video/*")) }) { Text("🎬 视频") }
                     OutlinedButton(onClick = {
                         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                             putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
                         }
                         runCatching { speechLauncher.launch(intent) }
-                    }) { Text("语音") }
+                    }) { Text("🎙️ 语音") }
                 }
-                mediaType?.let { Text(if (it == "image") "已选择图片" else "已选择视频", color = Coral) }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("工作", "生活", "家庭", "其他").forEach { item ->
+                        FilterChip(selected = category == item, onClick = { category = item }, label = { Text(item) })
+                    }
+                }
+                mediaType?.let { MediaPreview(mediaUri, it, compact = true) }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) { Text("公开发布"); Text("其他用户可见", fontSize = 12.sp, color = Color.Gray) }
                     Switch(checked = isPublic, onCheckedChange = { isPublic = it })
@@ -387,3 +419,54 @@ private fun StatCard(value: String, label: String, modifier: Modifier = Modifier
 private fun EmptyMessage(text: String) = Box(
     Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center
 ) { Text(text, color = Color.Gray) }
+
+@Composable
+private fun MediaPreview(mediaUri: String?, mediaType: String?, compact: Boolean = false) {
+    val uri = mediaUri?.let(Uri::parse) ?: return
+    val previewHeight = if (compact) 120.dp else 220.dp
+    when (mediaType) {
+        "image" -> AndroidView(
+            modifier = Modifier.fillMaxWidth().height(previewHeight).background(Color(0xFFF2F2F2), RoundedCornerShape(12.dp)),
+            factory = { context ->
+                ImageView(context).apply {
+                    scaleType = ImageView.ScaleType.CENTER_CROP
+                    adjustViewBounds = true
+                    setImageURI(uri)
+                    tag = mediaUri
+                }
+            },
+            update = { view ->
+                if (view.tag != mediaUri) {
+                    view.setImageURI(uri)
+                    view.tag = mediaUri
+                }
+            }
+        )
+        "video" -> AndroidView(
+            modifier = Modifier.fillMaxWidth().height(previewHeight).background(Color.Black, RoundedCornerShape(12.dp)),
+            factory = { context ->
+                VideoView(context).apply {
+                    setVideoURI(uri)
+                    setOnPreparedListener { player -> player.isLooping = true; seekTo(100) }
+                    setOnClickListener { if (isPlaying) pause() else start() }
+                    tag = mediaUri
+                }
+            },
+            update = { view ->
+                if (view.tag != mediaUri) {
+                    view.setVideoURI(uri)
+                    view.seekTo(100)
+                    view.tag = mediaUri
+                }
+            }
+        )
+    }
+}
+
+private fun postDate(createdAt: Long): LocalDate =
+    Instant.ofEpochMilli(createdAt).atZone(ZoneId.systemDefault()).toLocalDate()
+
+private fun formatPostTime(createdAt: Long): String =
+    Instant.ofEpochMilli(createdAt)
+        .atZone(ZoneId.systemDefault())
+        .format(DateTimeFormatter.ofPattern("M月d日 HH:mm"))
