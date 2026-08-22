@@ -2,9 +2,9 @@ package com.happy.today.ui
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.outlined.AddPhotoAlternate
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -29,13 +29,13 @@ fun ShareScreen() {
 
         Row {
             IconButton(onClick = { imageSelected = true }) {
-                Icon(Icons.Default.CameraAlt, contentDescription = "图片")
+                Icon(Icons.Outlined.AddPhotoAlternate, contentDescription = "选择图片")
             }
             IconButton(onClick = { videoSelected = true }) {
-                Icon(Icons.Default.Videocam, contentDescription = "视频")
+                Icon(Icons.Outlined.Videocam, contentDescription = "选择视频")
             }
             IconButton(onClick = { voiceRecorded = true }) {
-                Icon(Icons.Default.Mic, contentDescription = "语音")
+                Icon(Icons.Outlined.Mic, contentDescription = "语音输入")
             }
         }
 

@@ -30,12 +30,29 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Forum as ForumFilled
+import androidx.compose.material.icons.filled.Home as HomeFilled
+import androidx.compose.material.icons.filled.Person as PersonFilled
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.Forum as ForumOutlined
+import androidx.compose.material.icons.outlined.Home as HomeOutlined
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.Person as PersonOutlined
+import androidx.compose.material.icons.outlined.Videocam
+import androidx.compose.material.icons.rounded.AddCircle
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.SentimentSatisfied
+import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -55,6 +72,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.font.FontWeight
@@ -84,8 +102,14 @@ private val Sunshine = Color(0xFFFFB800)
 private val WarmBackground = Color(0xFFFFF9EC)
 private val Coral = Color(0xFFFF5C73)
 
-private enum class AppTab(val label: String, val emoji: String) {
-    HOME("首页", "☀️"), PLAZA("开心广场", "💬"), PROFILE("我的", "🙂")
+private enum class AppTab(
+    val label: String,
+    val selectedIcon: ImageVector,
+    val unselectedIcon: ImageVector
+) {
+    HOME("首页", HomeFilled, HomeOutlined),
+    PLAZA("开心广场", ForumFilled, ForumOutlined),
+    PROFILE("我的", PersonFilled, PersonOutlined)
 }
 
 private class HappyAppState(private val repository: HappyRepository) {
@@ -148,7 +172,12 @@ internal fun HappyTodayApp() {
                         NavigationBarItem(
                             selected = selectedTab == tab,
                             onClick = { selectedTab = tab },
-                            icon = { Text(tab.emoji) },
+                            icon = {
+                                Icon(
+                                    imageVector = if (selectedTab == tab) tab.selectedIcon else tab.unselectedIcon,
+                                    contentDescription = null
+                                )
+                            },
                             label = { Text(tab.label, fontSize = 10.sp) }
                         )
                     }
@@ -194,13 +223,19 @@ private fun HomeContent(state: HappyAppState, onCompose: () -> Unit) {
                     Modifier.fillMaxWidth().padding(28.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("☀️", fontSize = 72.sp)
+                    Icon(
+                        imageVector = Icons.Rounded.WbSunny,
+                        contentDescription = null,
+                        modifier = Modifier.size(72.dp),
+                        tint = Sunshine
+                    )
                     Text(quote, fontSize = 22.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(20.dp))
                     Button(onClick = onCompose) { Text("记录今天的开心事") }
                 }
             }
         }
+        item { CalendarPanel(posts = state.posts, onCompose = onCompose) }
         item { SectionTitle("今日概览") }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -217,7 +252,6 @@ private fun HomeContent(state: HappyAppState, onCompose: () -> Unit) {
                 )
             }
         }
-        item { CalendarPanel(posts = state.posts, onCompose = onCompose) }
     }
 }
 
@@ -240,7 +274,14 @@ private fun PostCard(post: HappyPost, onLike: (Long) -> Unit, onComment: (Long, 
     Card(colors = CardDefaults.cardColors(containerColor = Color.White)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(38.dp).background(Sunshine, CircleShape), contentAlignment = Alignment.Center) { Text("🙂") }
+                Box(Modifier.size(38.dp).background(Sunshine, CircleShape), contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Rounded.SentimentSatisfied,
+                        contentDescription = "用户头像",
+                        modifier = Modifier.size(25.dp),
+                        tint = Color.White
+                    )
+                }
                 Spacer(Modifier.width(10.dp))
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -254,10 +295,34 @@ private fun PostCard(post: HappyPost, onLike: (Long) -> Unit, onComment: (Long, 
             Text(post.content, fontSize = 17.sp, lineHeight = 25.sp)
             MediaPreview(post.mediaUri, post.mediaType)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { onLike(post.id) }) { Text("❤️ ${post.likes}") }
-                Text("💬 ${post.comments.size}", color = Color.Gray)
+                TextButton(onClick = { onLike(post.id) }) {
+                    Icon(Icons.Outlined.FavoriteBorder, contentDescription = "点赞", Modifier.size(18.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text(post.likes.toString())
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Outlined.ChatBubbleOutline,
+                        contentDescription = "评论数",
+                        modifier = Modifier.size(18.dp),
+                        tint = Color.Gray
+                    )
+                    Spacer(Modifier.width(5.dp))
+                    Text(post.comments.size.toString(), color = Color.Gray)
+                }
             }
-            post.comments.forEach { Text("🙂 $it", fontSize = 14.sp) }
+            post.comments.forEach {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Rounded.SentimentSatisfied,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = Sunshine
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(it, fontSize = 14.sp)
+                }
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     value = comment, onValueChange = { comment = it.take(100) },
@@ -284,7 +349,9 @@ private fun CalendarPanel(posts: List<HappyPost>, onCompose: () -> Unit) {
                 Text("开心日历", fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))
                 Text(month.format(DateTimeFormatter.ofPattern("yyyy 年 M 月")), color = Color.Gray)
-                IconButton(onClick = onCompose) { Text("＋", fontSize = 28.sp, color = Coral) }
+                IconButton(onClick = onCompose) {
+                    Icon(Icons.Rounded.AddCircle, contentDescription = "添加开心记录", tint = Coral)
+                }
             }
             Row(Modifier.fillMaxWidth()) {
                 listOf("一", "二", "三", "四", "五", "六", "日").forEach {
@@ -310,7 +377,14 @@ private fun CalendarPanel(posts: List<HappyPost>, onCompose: () -> Unit) {
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(day.toString(), fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal)
-                                    if (isToday && count > 0) Text("✓", color = Sunshine, fontWeight = FontWeight.Bold)
+                                    if (isToday && count > 0) {
+                                        Icon(
+                                            Icons.Rounded.CheckCircle,
+                                            contentDescription = "今日已记录",
+                                            modifier = Modifier.size(14.dp),
+                                            tint = Sunshine
+                                        )
+                                    }
                                 }
                                 Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                                     repeat(count.coerceAtMost(3)) {
@@ -375,15 +449,27 @@ private fun ComposerDialog(
                     minLines = 3, label = { Text("开心事（最多 100 字）") }, supportingText = { Text("${text.length}/100") }
                 )
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    OutlinedButton(onClick = { imagePicker.launch(arrayOf("image/*")) }) { Text("🖼️ 图片") }
-                    OutlinedButton(onClick = { videoPicker.launch(arrayOf("video/*")) }) { Text("🎬 视频") }
+                    OutlinedButton(onClick = { imagePicker.launch(arrayOf("image/*")) }) {
+                        Icon(Icons.Outlined.Image, contentDescription = null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text("图片")
+                    }
+                    OutlinedButton(onClick = { videoPicker.launch(arrayOf("video/*")) }) {
+                        Icon(Icons.Outlined.Videocam, contentDescription = null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text("视频")
+                    }
                     OutlinedButton(onClick = {
                         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                             putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
                         }
                         runCatching { speechLauncher.launch(intent) }
-                    }) { Text("🎙️ 语音") }
+                    }) {
+                        Icon(Icons.Outlined.Mic, contentDescription = null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text("语音")
+                    }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     listOf("工作", "生活", "家庭", "其他").forEach { item ->
