@@ -5,6 +5,6 @@ import com.happy.today.HappyTodayApp
 
 /** Root Compose navigation entry point used by MainActivity. */
 @Composable
-fun MainNavigation() {
-    HappyTodayApp()
+fun MainNavigation(launchQuote: String) {
+    HappyTodayApp(launchQuote)
 }
