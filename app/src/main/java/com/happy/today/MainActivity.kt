@@ -1,6 +1,7 @@
 package com.happy.today
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -92,11 +93,30 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 class MainActivity : ComponentActivity() {
+    private var launchQuote by mutableStateOf(DEFAULT_HAPPINESS_QUOTE)
+    private var hasStarted = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { MainNavigation() }
+        launchQuote = savedInstanceState?.getString(STATE_HAPPINESS_QUOTE)
+            ?: loadRandomHappinessQuote(applicationContext)
+        setContent { MainNavigation(launchQuote) }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (hasStarted) launchQuote = loadRandomHappinessQuote(applicationContext)
+        hasStarted = true
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString(STATE_HAPPINESS_QUOTE, launchQuote)
+        super.onSaveInstanceState(outState)
     }
 }
+
+private const val DEFAULT_HAPPINESS_QUOTE = "愿你今天对自己温柔一点。"
+private const val STATE_HAPPINESS_QUOTE = "state_happiness_quote"
 
 private val Sunshine = Color(0xFFFFB800)
 private val WarmBackground = Color(0xFFFFF9EC)
@@ -151,9 +171,13 @@ private class HappyAppState(private val repository: HappyRepository) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun HappyTodayApp() {
+internal fun HappyTodayApp(launchQuote: String) {
     val context = LocalContext.current
     val state = remember { HappyAppState(HappyRepository(context.applicationContext)) }
+    val paragraphs = remember { loadHappinessParagraphs(context.applicationContext) }
+    var paragraphIndex by remember(launchQuote) {
+        mutableStateOf(paragraphs.indexOf(launchQuote).takeIf { it >= 0 } ?: 0)
+    }
     var selectedTab by remember { mutableStateOf(AppTab.HOME) }
     var showComposer by remember { mutableStateOf(false) }
 
@@ -186,7 +210,15 @@ internal fun HappyTodayApp() {
         ) { padding ->
             Box(Modifier.padding(padding).fillMaxSize()) {
                 when (selectedTab) {
-                    AppTab.HOME -> HomeContent(state, onCompose = { showComposer = true })
+                    AppTab.HOME -> HomeContent(
+                        state = state,
+                        paragraph = paragraphs[paragraphIndex],
+                        onPrevious = {
+                            paragraphIndex = if (paragraphIndex == 0) paragraphs.lastIndex else paragraphIndex - 1
+                        },
+                        onNext = { paragraphIndex = (paragraphIndex + 1) % paragraphs.size },
+                        onCompose = { showComposer = true }
+                    )
                     AppTab.PLAZA -> PlazaContent(state)
                     AppTab.PROFILE -> ProfileScreen(state.posts)
                 }
@@ -207,12 +239,13 @@ internal fun HappyTodayApp() {
 }
 
 @Composable
-private fun HomeContent(state: HappyAppState, onCompose: () -> Unit) {
-    val quotes = listOf(
-        "笑一笑，生活更美好。", "关注当下，就是送给自己最好的礼物。",
-        "微小的快乐，也值得被认真记录。", "愿你今天对自己温柔一点。"
-    )
-    val quote = quotes[LocalDate.now().dayOfYear % quotes.size]
+private fun HomeContent(
+    state: HappyAppState,
+    paragraph: String,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onCompose: () -> Unit
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -229,7 +262,19 @@ private fun HomeContent(state: HappyAppState, onCompose: () -> Unit) {
                         modifier = Modifier.size(72.dp),
                         tint = Sunshine
                     )
-                    Text(quote, fontSize = 22.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                    Text(paragraph, fontSize = 22.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(16.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        OutlinedButton(onClick = onPrevious, modifier = Modifier.weight(1f)) {
+                            Text("上一段")
+                        }
+                        OutlinedButton(onClick = onNext, modifier = Modifier.weight(1f)) {
+                            Text("下一段")
+                        }
+                    }
                     Spacer(Modifier.height(20.dp))
                     Button(onClick = onCompose) { Text("记录今天的开心事") }
                 }
@@ -254,6 +299,20 @@ private fun HomeContent(state: HappyAppState, onCompose: () -> Unit) {
         }
     }
 }
+
+private fun loadHappinessParagraphs(context: Context): List<String> = runCatching {
+    context.assets.open("happiness_quotes.md").bufferedReader().useLines { lines ->
+        lines
+            .map(String::trim)
+            .filter { it.startsWith("> ") }
+            .map { it.removePrefix("> ").trim() }
+            .filter(String::isNotBlank)
+            .toList()
+    }
+}.getOrNull().orEmpty().ifEmpty { listOf(DEFAULT_HAPPINESS_QUOTE) }
+
+private fun loadRandomHappinessQuote(context: Context): String =
+    loadHappinessParagraphs(context).random()
 
 @Composable
 private fun PlazaContent(state: HappyAppState) {
