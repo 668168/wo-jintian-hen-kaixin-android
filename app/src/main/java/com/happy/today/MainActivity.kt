@@ -127,9 +127,9 @@ private enum class AppTab(
     val selectedIcon: ImageVector,
     val unselectedIcon: ImageVector
 ) {
-    HOME("首页", HomeFilled, HomeOutlined),
-    PLAZA("开心广场", ForumFilled, ForumOutlined),
-    PROFILE("我的", PersonFilled, PersonOutlined)
+    HOME("首页", Icons.Filled.HomeFilled, Icons.Outlined.HomeOutlined),
+    PLAZA("开心广场", Icons.Filled.ForumFilled, Icons.Outlined.ForumOutlined),
+    PROFILE("我的", Icons.Filled.PersonFilled, Icons.Outlined.PersonOutlined)
 }
 
 private class HappyAppState(private val repository: HappyRepository) {
